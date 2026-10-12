@@ -1,0 +1,71 @@
+# Arena configuration. Every model sees the same market snapshot each bar.
+
+[market]
+assets = ["BTC-USD", "ETH-USD"]
+bar_minutes = 15
+source = "coinbase"          # "coinbase" (free public candles), "csv", or "synthetic" (offline testing)
+data_dir = "data"
+
+[replay]
+days = 7                     # length of the replay window
+warmup_days = 8              # history needed before the first decision (7-day volatility baseline + 24h returns)
+seed_usd = 100.0             # starting money per model, split equally across assets
+
+[costs]
+# Set these to the real costs of the venue you care about. Retail taker fees are
+# often much higher than 10 bps, which makes frequent trading harder to profit from.
+fee_bps = 10                 # per side
+slippage_bps = 2             # per side
+
+[decision]
+horizon_bars = 4             # forecast / action horizon (4 x 15 min = 1 hour)
+up_threshold_pct = 0.3       # "up" means more than this % higher after the horizon
+action_threshold = 0.6       # act when P(yes) >= this; same for every model
+state_format = "json_string" # "json_string" (works for both APIs) or "object"
+
+[run]
+max_calls_per_model = 5000   # safety cap on paid requests per model per run
+workers = 8                  # parallel requests per bar
+db_path = "runs/arena.sqlite"
+
+# ---------------------------------------------------------------- models
+# kind = "systemone": TypeSafe-style API (state + typed questions). Jev and
+# Microsoft-Decision-1 both speak it. Keys come from the environment or .env.
+
+[models.jev]
+kind = "systemone"
+providers = ["typesafe", "openrouter"]   # first provider whose key is set wins
+
+[models.jev.typesafe]
+url = "https://api.typesafe.ai/v1/systemone"
+model = "jev-latest"
+key_env = "TYPESAFE_API_KEY"
+auth = "bearer"
+
+[models.jev.openrouter]
+url = "https://openrouter.ai/api/v1/systemone"
+model = "typesafe/jev-1.13"
+key_env = "OPENROUTER_API_KEY"
+auth = "bearer"
+
+[models.microsoft]
+kind = "systemone"
+providers = ["azure", "openrouter"]
+
+[models.microsoft.azure]
+# Your Foundry resource endpoint + this path; model = your deployment name.
+url_env = "AZURE_FOUNDRY_ENDPOINT"
+url_suffix = "/providers/microsoft/v1/systemone"
+model_env = "MS_DECISION_DEPLOYMENT"
+key_env = "AZURE_API_KEY"
+auth = "api-key"
+
+[models.microsoft.openrouter]
+url = "https://openrouter.ai/api/v1/systemone"
+model = "microsoft/microsoft-decision-1"
+key_env = "OPENROUTER_API_KEY"
+auth = "bearer"
+
+# Offline stand-in with the same interface; used by tests and --source synthetic demos.
+[models.mock]
+kind = "mock"

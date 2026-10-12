@@ -1,0 +1,6 @@
+# Ignore Python virtual environment folder
+.venv_stocks
+
+.env
+
+reports/
